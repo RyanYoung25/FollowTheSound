@@ -5,9 +5,12 @@ import alsaaudio
 import audioop
 import sys
 import time
+import math
 
 robot = maestor()
 audioInput = 0
+maxPos = 1.5
+minPos = -1.5
 
 def initAudio():
     global audioInput
@@ -29,13 +32,18 @@ def localize():
         #Average difference
         avgDiff = 0
         
-        for i in range(0, 1000):
+        for i in range(0, 100):
             l, data = audioInput.read()
             if l > 0:
                 lchan = audioop.tomono(data, 2, 1, 0)
                 rchan = audioop.tomono(data, 2, 0, 1)
                 lmax = audioop.max(lchan, 2)
                 rmax = audioop.max(rchan, 2)
+                
+                #lowpass filter
+                if lmax < 70 and rmax < 70:
+                    continue
+
                 #calculage the difference in intensity. Positive difference means the source
                 #is further to the left 
                 
@@ -47,26 +55,35 @@ def localize():
         print avgDiff
         #Logistic Sigmoid function! 
         
-        z = Math.exp(-1 * alpha * avgDiff)
+        z = math.exp(-1 * alpha * avgDiff)
         error = (1 / (1 + z)) - 0.5
         return error
         
-    except Exception:
-        sys.exit(0)
+    except Exception, e:
+        print e 
+        
     
 
 def adjust(error):
     #adjusts hubo's neck yaw to position himself closer to the source of the sound
-    #robot.setProperty("NKY", "position", error) #will work on it. But for now. 
-    pass
-    
+    pos = float(robot.getProperties("NKY", "position"))
+    pos = pos + error
+
+    if pos > maxPos:
+        pos = maxPos
+    elif pos < minPos: 
+        pos = minPos
+
+    robot.setProperty("NKY", "position",  pos) #will work on it. But for now. 
+    print pos + error
 
 def main():
     #The main part of the program
+    initAudio()
     while True:
         err = localize()
         adjust(err)
-        time.sleep(1)
+        time.sleep(.25)
 
 
 if __name__ == '__main__':
